@@ -424,33 +424,3 @@ body {
 }
 
 
-/* Login ekranlari uchun */
-.screen {
-  width: 100%;
-  display: none;
-  align-items: center;
-  justify-content: center;
-}
-
-.screen-active {
-  display: flex;
-}
-
-/* Chat ekrani uchun – keng panel */
-.chat-screen {
-  width: 100%;
-  max-width: 900px;
-  height: 95vh;
-  margin: 0 auto;
-  display: none;            /* dastlab yashirin */
-  flex-direction: column;
-  background: #ffffff;
-  border-radius: 18px;
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.15);
-  border: 1px solid #e5e7eb;
-}
-
-/* JS dagi screen-active class chatga ham ishlaydi */
-.chat-screen.screen-active {
-  display: flex;
-}
