@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8" />
+  <title>EMC Group Chat</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Login / password screen -->
+    <section id="loginScreen" class="screen screen-active">
+      <div class="card">
+        <div class="logo-circle">EMC</div>
+        <h1 class="title">EMC Group Chat</h1>
+        <p class="subtitle">Yopiq guruh. Faqat parol bilganlar uchun.</p>
+
+        <div class="field">
+          <label for="nameInput">Ismingiz</label>
+          <input id="nameInput" type="text" placeholder="Masalan: Davron" autocomplete="off" />
+        </div>
+
+        <div class="field">
+          <label for="passwordInput">Parol</label>
+          <input id="passwordInput" type="password" placeholder="••••••" autocomplete="off" />
+        </div>
+
+        <button id="loginBtn" class="btn-primary">Kirish</button>
+        <p id="loginError" class="error-text"></p>
+        <p class="hint">
+          Parolni faqat ishonchli odamlarga bering. Har safar kirganda qayta parol so'raladi.
+        </p>
+      </div>
+    </section>
+
+    <!-- Chat screen -->
+    <section id="chatScreen" class="screen">
+      <header class="chat-header">
+        <div class="group-avatar">G</div>
+        <div class="group-meta">
+          <div class="group-title">EMC Private Group</div>
+          <div class="group-subtitle" id="userSubtitle"></div>
+        </div>
+        <button id="logoutBtn" class="link-button">Chiqish</button>
+      </header>
+
+      <main id="messagesContainer" class="messages-container">
+        <!-- xabarlar JS orqali qo'shiladi -->
+      </main>
+
+      <footer class="input-bar">
+        <textarea
+          id="messageInput"
+          rows="1"
+          placeholder="Xabar yozing..."
+        ></textarea>
+        <button id="sendBtn" class="send-button">&#10148;</button>
+      </footer>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
