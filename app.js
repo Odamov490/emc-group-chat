@@ -1,7 +1,7 @@
 // EMC Group Chat – REAL-TIME (Firebase Realtime Database)
 // GitHub Pages uchun front-end-only yechim
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import {
   getDatabase,
   ref,
