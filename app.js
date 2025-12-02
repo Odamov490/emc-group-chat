@@ -1,8 +1,8 @@
-// EMC Group Chat – REALTIME Firebase Chat
-// GitHub Pages + Firebase Realtime Database uchun to'liq front-end yechim
-//---------------------------------------------------------------
+// EMC Group Chat – REALTIME Firebase Chat (per-user login + password)
 
+//---------------------------------------------------------------
 // Firebase importlari
+//---------------------------------------------------------------
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import {
   getDatabase,
@@ -11,10 +11,33 @@ import {
   onChildAdded,
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-// 🔐 Parol (xohlasangiz o'zgartirasiz)
-const ACCESS_PASSWORD = "emc123";
+//---------------------------------------------------------------
+// Xodimlar ro'yxati (LOGIN + PAROL + ko'rsatiladigan ism)
+// login – foydalanuvchi kiritadigan "login"
+// password – parol
+// displayName – chatda ko'rinadigan ism
+//---------------------------------------------------------------
+const USERS = {
+  // login: { password: "...", displayName: "..." }
+  "Davron": {
+    password: "1234",
+    displayName: "Davron Abdurashidov",
+  },
+  "Xushnudbek": {
+    password: "5678",
+    displayName: "Xushnudbek Reimbayev",
+  },
+  "Odamov": {
+    password: "9012",
+    displayName: "G'ulomjon Odamov",
+  },
+  // ⬆️ Xohlagancha qo'shasiz:
+  // "login": { password: "parol", displayName: "To'liq ism" }
+};
 
-// 🚀 Firebase config – sizning loyihangizniki!
+//---------------------------------------------------------------
+// Firebase config – sizning project'ingiz
+//---------------------------------------------------------------
 const firebaseConfig = {
   apiKey: "AIzaSyC-26n7wJh2FsSLpKhN0O3sw-xef5x8d7U",
   authDomain: "emc-group-chat.firebaseapp.com",
@@ -26,7 +49,7 @@ const firebaseConfig = {
   measurementId: "G-W751GMPTR"
 };
 
-// 🔌 Firebase ishga tushiriladi
+// Firebase ishga tushirish
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const messagesRef = ref(db, "messages");
@@ -36,8 +59,9 @@ const messagesRef = ref(db, "messages");
 //---------------------------------------------------------------
 const loginScreen = document.getElementById("loginScreen");
 const chatScreen = document.getElementById("chatScreen");
-const nameInput = document.getElementById("nameInput");
-const passwordInput = document.getElementById("passwordInput");
+
+const nameInput = document.getElementById("nameInput");        // LOGIN kiriladigan joy
+const passwordInput = document.getElementById("passwordInput"); // PAROL kiriladigan joy
 const loginBtn = document.getElementById("loginBtn");
 const loginError = document.getElementById("loginError");
 const userSubtitle = document.getElementById("userSubtitle");
@@ -50,15 +74,25 @@ const sendBtn = document.getElementById("sendBtn");
 let currentUser = { id: null, name: null };
 
 //---------------------------------------------------------------
-// Vaqt formatlash
+// Yordamchi funksiyalar
 //---------------------------------------------------------------
 function formatTime(ts) {
   const d = new Date(ts);
   return d.toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" });
 }
 
+function showLoginScreen() {
+  loginScreen.classList.add("screen-active");
+  chatScreen.classList.remove("screen-active");
+}
+
+function showChatScreen() {
+  chatScreen.classList.add("screen-active");
+  loginScreen.classList.remove("screen-active");
+}
+
 //---------------------------------------------------------------
-// Xabarni ekranga chiqarish
+// Xabarni ekranga chizish
 //---------------------------------------------------------------
 function renderMessage(msg) {
   const row = document.createElement("div");
@@ -67,7 +101,7 @@ function renderMessage(msg) {
   if (msg.user_id !== currentUser.id) {
     const author = document.createElement("div");
     author.className = "message-author";
-    author.textContent = msg.user_name;
+    author.textContent = msg.user_name || "Foydalanuvchi";
     row.appendChild(author);
   }
 
@@ -90,7 +124,7 @@ function renderMessage(msg) {
 //---------------------------------------------------------------
 function sendMessage() {
   const text = messageInput.value.trim();
-  if (!text) return;
+  if (!text || !currentUser.id) return;
 
   push(messagesRef, {
     user_id: currentUser.id,
@@ -104,35 +138,53 @@ function sendMessage() {
 }
 
 //---------------------------------------------------------------
-// Realtime listener – har bir yangi xabar kelganda ishlaydi
+// Firebase – real-time listener
 //---------------------------------------------------------------
 onChildAdded(messagesRef, (snapshot) => {
-  renderMessage(snapshot.val());
+  const value = snapshot.val();
+  if (!value) return;
+  renderMessage(value);
 });
 
 //---------------------------------------------------------------
-// Kirish funksiyasi
+// LOGIN – har xodim uchun login + parol
 //---------------------------------------------------------------
 function handleLogin() {
-  const name = nameInput.value.trim();
-  const pass = passwordInput.value.trim();
+  const login = nameInput.value.trim().toLowerCase(); // login
+  const pass = passwordInput.value.trim();            // parol
 
-  if (!name) return (loginError.textContent = "Ismingizni kiriting.");
-  if (!pass) return (loginError.textContent = "Parolni kiriting.");
-  if (pass !== ACCESS_PASSWORD) {
-    loginError.textContent = "Parol noto'g'ri!";
+  if (!login) {
+    loginError.textContent = "Login kiriting.";
+    return;
+  }
+  if (!pass) {
+    loginError.textContent = "Parol kiriting.";
     return;
   }
 
+  const user = USERS[login];
+  if (!user) {
+    loginError.textContent = "Bunday login topilmadi.";
+    return;
+  }
+  if (user.password !== pass) {
+    loginError.textContent = "Parol noto'g'ri.";
+    return;
+  }
+
+  // Muvaffaqiyatli login
   currentUser = {
-    id: "user_" + name.toLowerCase().replace(/\s+/g, "_"),
-    name,
+    id: login,                  // unique ID sifatida login
+    name: user.displayName,     // chatda ko'rinadigan ism
   };
 
   sessionStorage.setItem("emc_chat_user", JSON.stringify(currentUser));
-  loginScreen.classList.remove("screen-active");
-  chatScreen.classList.add("screen-active");
+  loginError.textContent = "";
+  nameInput.value = "";
+  passwordInput.value = "";
+
   userSubtitle.textContent = currentUser.name + " • online";
+  showChatScreen();
   messageInput.focus();
 }
 
@@ -141,27 +193,50 @@ function handleLogin() {
 //---------------------------------------------------------------
 function handleLogout() {
   sessionStorage.removeItem("emc_chat_user");
-  location.reload();
+  currentUser = { id: null, name: null };
+  showLoginScreen();
 }
 
 //---------------------------------------------------------------
 // Eventlar
 //---------------------------------------------------------------
 loginBtn.addEventListener("click", handleLogin);
-passwordInput.addEventListener("keydown", (e) => e.key === "Enter" && handleLogin());
+
+passwordInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    handleLogin();
+  }
+});
+
 sendBtn.addEventListener("click", sendMessage);
-messageInput.addEventListener("keydown", (e) => (e.key === "Enter" && !e.shiftKey) && (e.preventDefault(), sendMessage()));
+
+messageInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
 logoutBtn.addEventListener("click", handleLogout);
 
 //---------------------------------------------------------------
-// Avto-login
+// Sahifa ochilganda session'dan foydalanuvchini tiklash
 //---------------------------------------------------------------
 const savedUser = sessionStorage.getItem("emc_chat_user");
 if (savedUser) {
-  currentUser = JSON.parse(savedUser);
-  loginScreen.classList.remove("screen-active");
-  chatScreen.classList.add("screen-active");
-  userSubtitle.textContent = currentUser.name + " • online";
+  try {
+    currentUser = JSON.parse(savedUser);
+    if (currentUser && currentUser.id && currentUser.name) {
+      userSubtitle.textContent = currentUser.name + " • online";
+      showChatScreen();
+    } else {
+      showLoginScreen();
+    }
+  } catch (e) {
+    console.error("User parse xato:", e);
+    showLoginScreen();
+  }
 } else {
-  loginScreen.classList.add("screen-active");
+  showLoginScreen();
 }

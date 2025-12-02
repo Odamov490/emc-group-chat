@@ -13,22 +13,35 @@
       <div class="card">
         <div class="logo-circle">EMC</div>
         <h1 class="title">EMC Group Chat</h1>
-        <p class="subtitle">Yopiq guruh. Faqat parol bilganlar uchun.</p>
+        <p class="subtitle">
+          Yopiq guruh. Faqat ro‘yxatdagi xodimlar uchun.
+        </p>
 
         <div class="field">
-          <label for="nameInput">Ismingiz</label>
-          <input id="nameInput" type="text" placeholder="Masalan: Davron" autocomplete="off" />
+          <label for="nameInput">Login</label>
+          <input
+            id="nameInput"
+            type="text"
+            placeholder="Masalan: davron"
+            autocomplete="off"
+          />
         </div>
 
         <div class="field">
           <label for="passwordInput">Parol</label>
-          <input id="passwordInput" type="password" placeholder="••••••" autocomplete="off" />
+          <input
+            id="passwordInput"
+            type="password"
+            placeholder="••••••"
+            autocomplete="off"
+          />
         </div>
 
         <button id="loginBtn" class="btn-primary">Kirish</button>
         <p id="loginError" class="error-text"></p>
         <p class="hint">
-          Parolni faqat ishonchli odamlarga bering. Har safar kirganda qayta parol so'raladi.
+          Har bir xodim uchun alohida login va parol beriladi.
+          Login/parolni faqat ishonchli odamlarga bering.
         </p>
       </div>
     </section>
@@ -45,7 +58,7 @@
       </header>
 
       <main id="messagesContainer" class="messages-container">
-        <!-- xabarlar JS orqali qo'shiladi -->
+        <!-- Xabarlar JS orqali qo'shiladi -->
       </main>
 
       <footer class="input-bar">
@@ -60,6 +73,5 @@
   </div>
 
   <script type="module" src="app.js"></script>
-
 </body>
 </html>
