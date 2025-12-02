@@ -20,8 +20,6 @@ import {
 //---------------------------------------------------------------
 // Xodimlar ro'yxati (LOGIN + PAROL + ko'rsatiladigan ism)
 // login – foydalanuvchi kiritadigan "login" (hammasi kichik harf)
-// password – parol
-// displayName – chatda ko'rinadigan ism
 //---------------------------------------------------------------
 const USERS = {
   "davron": {
@@ -36,8 +34,10 @@ const USERS = {
     password: "1234",
     displayName: "G'ulomjon Odamov",
   },
-  // "tillayev": { password: "9999", displayName: "Anvar Tillayev" },
 };
+
+// Adminlar (chatni tozalash huquqi bor loginlar)
+const ADMINS = new Set(["odamov"]);
 
 //---------------------------------------------------------------
 // Firebase config – sizning project'ingiz
@@ -57,7 +57,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const messagesRef = ref(db, "messages");
-const pinnedRef = ref(db, "pinned"); // bitta umumiy pinlangan xabar
+const pinnedRef = ref(db, "pinned");
 
 //---------------------------------------------------------------
 // DOM elementlar
@@ -71,35 +71,23 @@ const loginBtn = document.getElementById("loginBtn");
 const loginError = document.getElementById("loginError");
 const userSubtitle = document.getElementById("userSubtitle");
 const logoutBtn = document.getElementById("logoutBtn");
+const clearChatBtn = document.getElementById("clearChatBtn");
 
 const messagesContainer = document.getElementById("messagesContainer");
 const messageInput = document.getElementById("messageInput");
 const sendBtn = document.getElementById("sendBtn");
-const inputBar = document.querySelector(".input-bar");
 
-// Reply / edit preview (JS orqali yaratamiz)
-const replyPreview = document.createElement("div");
-replyPreview.id = "replyPreview";
-replyPreview.className = "reply-preview";
-replyPreview.style.display = "none";
-replyPreview.textContent = "";
-inputBar.insertBefore(replyPreview, messageInput);
-
-// Pin panel (JS orqali yaratamiz)
-const pinnedBar = document.createElement("div");
-pinnedBar.id = "pinnedBar";
-pinnedBar.className = "pinned-bar";
-pinnedBar.style.display = "none";
-pinnedBar.textContent = "";
-chatScreen.insertBefore(pinnedBar, messagesContainer);
+// Reply / pin panellari (HTMLdan)
+const replyPreview = document.getElementById("replyPreview");
+const pinnedBar = document.getElementById("pinnedBar");
 
 //---------------------------------------------------------------
-// Holat (state)
+// Holat
 //---------------------------------------------------------------
 let currentUser = { id: null, name: null };
-let editingKey = null;              // qaysi xabar tahrirlanmoqda
-let replyingTo = null;              // qaysi xabarga reply yozilmoqda
-const messagesCache = {};           // key -> xabar obyekti
+let editingKey = null;
+let replyingTo = null;
+const messagesCache = {};
 
 //---------------------------------------------------------------
 // Yordamchi funksiyalar
@@ -126,7 +114,6 @@ function clearReplyEditState() {
   replyPreview.textContent = "";
 }
 
-// Reply/ edit preview matnini ko'rsatish
 function showPreview(type, msg) {
   let label = "";
   if (type === "reply") {
@@ -139,13 +126,12 @@ function showPreview(type, msg) {
   replyPreview.style.display = "block";
 }
 
-// Reply/ editni bekor qilish (previewga bosganda)
 replyPreview.addEventListener("click", () => {
   clearReplyEditState();
 });
 
 //---------------------------------------------------------------
-// Xabar elementini chizish / yangilash
+// Xabarni DOMda chizish / yangilash
 //---------------------------------------------------------------
 function renderMessage(key, msg) {
   messagesCache[key] = msg;
@@ -160,7 +146,6 @@ function renderMessage(key, msg) {
   row.className = "message-row " + (msg.user_id === currentUser.id ? "me" : "other");
   row.innerHTML = "";
 
-  // Reply preview (agar mavjud bo'lsa)
   if (msg.reply_to) {
     const replyBlock = document.createElement("div");
     replyBlock.className = "message-reply";
@@ -171,7 +156,6 @@ function renderMessage(key, msg) {
     row.appendChild(replyBlock);
   }
 
-  // Avtor (agar o'zim bo'lmasam)
   if (msg.user_id !== currentUser.id) {
     const author = document.createElement("div");
     author.className = "message-author";
@@ -179,13 +163,11 @@ function renderMessage(key, msg) {
     row.appendChild(author);
   }
 
-  // Asosiy xabar pufagi
   const bubble = document.createElement("div");
   bubble.className = "message-bubble";
   bubble.textContent = msg.text;
   row.appendChild(bubble);
 
-  // Vaqt va "tahrirlangan" label
   const time = document.createElement("div");
   time.className = "message-time";
   let timeText = formatTime(msg.created_at);
@@ -195,7 +177,6 @@ function renderMessage(key, msg) {
   time.textContent = timeText;
   row.appendChild(time);
 
-  // Action tugmalar
   const actions = document.createElement("div");
   actions.className = "message-actions";
 
@@ -208,13 +189,11 @@ function renderMessage(key, msg) {
     return btn;
   }
 
-  // Faqat o'zimning xabarlarim uchun: tahrirlash / o'chirish
   if (msg.user_id === currentUser.id) {
     actions.appendChild(makeAction("Tahrirlash", "edit"));
     actions.appendChild(makeAction("O'chirish", "delete"));
   }
 
-  // Hamma uchun: reply / pin
   actions.appendChild(makeAction("Javob", "reply"));
   actions.appendChild(makeAction("Pin", "pin"));
 
@@ -223,7 +202,6 @@ function renderMessage(key, msg) {
   messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
-// DOMdan xabarni o'chirish
 function removeMessageElement(key) {
   delete messagesCache[key];
   const row = document.querySelector(`.message-row[data-key="${key}"]`);
@@ -237,7 +215,6 @@ function sendMessage() {
   const text = messageInput.value.trim();
   if (!text || !currentUser.id) return;
 
-  // Agar tahrirlash rejimi bo'lsa – mavjud xabarni yangilaymiz
   if (editingKey) {
     const msgRef = ref(db, `messages/${editingKey}`);
     update(msgRef, {
@@ -249,7 +226,6 @@ function sendMessage() {
     return;
   }
 
-  // Yangi xabar
   const msgData = {
     user_id: currentUser.id,
     user_name: currentUser.name,
@@ -257,7 +233,6 @@ function sendMessage() {
     created_at: Date.now(),
   };
 
-  // Agar reply bo'lsa
   if (replyingTo) {
     msgData.reply_to = {
       key: replyingTo.key,
@@ -275,7 +250,7 @@ function sendMessage() {
 }
 
 //---------------------------------------------------------------
-// Firebase – real-time listenerlar
+// Firebase listeners
 //---------------------------------------------------------------
 onChildAdded(messagesRef, (snapshot) => {
   const val = snapshot.val();
@@ -293,7 +268,7 @@ onChildRemoved(messagesRef, (snapshot) => {
   removeMessageElement(snapshot.key);
 });
 
-// Pinlangan xabarni kuzatish
+// Pinlangan xabar
 onValue(pinnedRef, (snapshot) => {
   const data = snapshot.val();
   if (!data) {
@@ -302,14 +277,12 @@ onValue(pinnedRef, (snapshot) => {
     pinnedBar.dataset.key = "";
     return;
   }
-
   pinnedBar.style.display = "block";
   pinnedBar.dataset.key = data.key || "";
   const shortText = (data.text || "").slice(0, 100);
   pinnedBar.textContent = `📌 ${data.user_name || ""}: ${shortText}`;
 });
 
-// Pin bannerni bosganda — o‘sha xabarga scroll
 pinnedBar.addEventListener("click", () => {
   const key = pinnedBar.dataset.key;
   if (!key) return;
@@ -322,7 +295,7 @@ pinnedBar.addEventListener("click", () => {
 });
 
 //---------------------------------------------------------------
-// Xabar ichidagi action tugmalar: edit / delete / reply / pin
+// Message action tugmalari
 //---------------------------------------------------------------
 messagesContainer.addEventListener("click", (e) => {
   const btn = e.target.closest("[data-action]");
@@ -369,7 +342,6 @@ messagesContainer.addEventListener("click", (e) => {
   }
 
   if (action === "pin") {
-    // Hozircha har kim pin qila oladi (xohlasak faqat adminlar uchun qilamiz)
     set(pinnedRef, {
       key,
       user_id: msg.user_id,
@@ -380,7 +352,25 @@ messagesContainer.addEventListener("click", (e) => {
 });
 
 //---------------------------------------------------------------
-// LOGIN – har xodim uchun login + parol
+// Chat tarixini tozalash (faqat ADMINS)
+//---------------------------------------------------------------
+async function handleClearChat() {
+  if (!currentUser.id || !ADMINS.has(currentUser.id)) return;
+
+  const ok = confirm(
+    "Barcha xabarlarni va pinlangan xabarni tozalashni xohlaysizmi? Bu amal qaytarilmaydi."
+  );
+  if (!ok) return;
+
+  await remove(messagesRef);
+  await set(pinnedRef, null);
+
+  messagesContainer.innerHTML = "";
+  clearReplyEditState();
+}
+
+//---------------------------------------------------------------
+// LOGIN
 //---------------------------------------------------------------
 function handleLogin() {
   const loginRaw = nameInput.value.trim();
@@ -419,6 +409,13 @@ function handleLogin() {
   userSubtitle.textContent = currentUser.name + " • online";
   showChatScreen();
   messageInput.focus();
+
+  // Admin tugmasini ko'rsatish / yashirish
+  if (ADMINS.has(currentUser.id)) {
+    clearChatBtn.style.display = "inline-flex";
+  } else {
+    clearChatBtn.style.display = "none";
+  }
 }
 
 //---------------------------------------------------------------
@@ -453,6 +450,7 @@ messageInput.addEventListener("keydown", (e) => {
 });
 
 logoutBtn.addEventListener("click", handleLogout);
+clearChatBtn.addEventListener("click", handleClearChat);
 
 //---------------------------------------------------------------
 // Sahifa ochilganda session'dan foydalanuvchini tiklash
@@ -464,6 +462,11 @@ if (savedUser) {
     if (currentUser && currentUser.id && currentUser.name) {
       userSubtitle.textContent = currentUser.name + " • online";
       showChatScreen();
+      if (ADMINS.has(currentUser.id)) {
+        clearChatBtn.style.display = "inline-flex";
+      } else {
+        clearChatBtn.style.display = "none";
+      }
     } else {
       showLoginScreen();
     }
@@ -473,4 +476,5 @@ if (savedUser) {
   }
 } else {
   showLoginScreen();
+  clearChatBtn.style.display = "none";
 }

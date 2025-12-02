@@ -49,19 +49,40 @@
     <!-- Chat screen -->
     <section id="chatScreen" class="screen">
       <header class="chat-header">
-        <div class="group-avatar">G</div>
-        <div class="group-meta">
-          <div class="group-title">EMC Private Group</div>
-          <div class="group-subtitle" id="userSubtitle"></div>
+        <div class="group-left">
+          <div class="group-avatar">G</div>
+          <div class="group-meta">
+            <div class="group-title">EMC Private Group</div>
+            <div class="group-subtitle" id="userSubtitle"></div>
+          </div>
         </div>
-        <button id="logoutBtn" class="link-button">Chiqish</button>
+        <div class="header-actions">
+          <button id="clearChatBtn" class="link-button danger">
+            Tozalash
+          </button>
+          <button id="logoutBtn" class="link-button">
+            Chiqish
+          </button>
+        </div>
       </header>
 
+      <!-- Pinned message panel -->
+      <div id="pinnedBar" class="pinned-bar" style="display:none"></div>
+
+      <!-- Messages -->
       <main id="messagesContainer" class="messages-container">
         <!-- Xabarlar JS orqali qo'shiladi -->
       </main>
 
+      <!-- Input area -->
       <footer class="input-bar">
+        <!-- Reply / edit preview -->
+        <div
+          id="replyPreview"
+          class="reply-preview"
+          style="display:none"
+        ></div>
+
         <textarea
           id="messageInput"
           rows="1"
