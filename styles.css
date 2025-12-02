@@ -241,7 +241,7 @@ body {
 
 .messages-container {
   flex: 1;
-  padding: 10px 12px;
+  padding: 10px 16px;
   overflow-y: auto;
   background: #f3f4f6;
 }
@@ -255,22 +255,19 @@ body {
   border-radius: 999px;
 }
 
-/* Message rows */
-
+/* Message rows – ENDI TO‘LIQ KENGLIKDA */
 .message-row {
-  max-width: 70%;
+  width: 100%;
   margin-bottom: 8px;
   display: flex;
   flex-direction: column;
 }
 
 .message-row.me {
-  margin-left: auto;
   align-items: flex-end;
 }
 
 .message-row.other {
-  margin-right: auto;
   align-items: flex-start;
 }
 
@@ -290,14 +287,15 @@ body {
   margin-bottom: 3px;
 }
 
-/* Bubble */
-
+/* Bubble – faqat pufak 70% dan oshmaydi */
 .message-bubble {
   padding: 7px 10px;
   border-radius: 14px;
   font-size: 14px;
   background: #ffffff;
   border: 1px solid #e5e7eb;
+  max-width: 70%;
+  word-wrap: break-word;
 }
 
 .message-row.me .message-bubble {
