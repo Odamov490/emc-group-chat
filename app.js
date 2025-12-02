@@ -13,26 +13,26 @@ import {
 
 //---------------------------------------------------------------
 // Xodimlar ro'yxati (LOGIN + PAROL + ko'rsatiladigan ism)
-// login – foydalanuvchi kiritadigan "login"
+// login – foydalanuvchi kiritadigan "login" (hammasi kichik harf)
 // password – parol
 // displayName – chatda ko'rinadigan ism
 //---------------------------------------------------------------
 const USERS = {
   // login: { password: "...", displayName: "..." }
-  "Davron": {
+  "davron": {
     password: "1234",
     displayName: "Davron Abdurashidov",
   },
-  "Xushnudbek": {
+  "xushnudbek": {
     password: "5678",
     displayName: "Xushnudbek Reimbayev",
   },
-  "Odamov": {
+  "odamov": {
     password: "9012",
     displayName: "G'ulomjon Odamov",
   },
   // ⬆️ Xohlagancha qo'shasiz:
-  // "login": { password: "parol", displayName: "To'liq ism" }
+  // "tillayev": { password: "9999", displayName: "Anvar Tillayev" },
 };
 
 //---------------------------------------------------------------
@@ -60,8 +60,8 @@ const messagesRef = ref(db, "messages");
 const loginScreen = document.getElementById("loginScreen");
 const chatScreen = document.getElementById("chatScreen");
 
-const nameInput = document.getElementById("nameInput");        // LOGIN kiriladigan joy
-const passwordInput = document.getElementById("passwordInput"); // PAROL kiriladigan joy
+const nameInput = document.getElementById("nameInput");        // LOGIN
+const passwordInput = document.getElementById("passwordInput"); // PAROL
 const loginBtn = document.getElementById("loginBtn");
 const loginError = document.getElementById("loginError");
 const userSubtitle = document.getElementById("userSubtitle");
@@ -150,7 +150,7 @@ onChildAdded(messagesRef, (snapshot) => {
 // LOGIN – har xodim uchun login + parol
 //---------------------------------------------------------------
 function handleLogin() {
-  const login = nameInput.value.trim().toLowerCase(); // login
+  const login = nameInput.value.trim().toLowerCase(); // login (kichik harfga o'tkazamiz)
   const pass = passwordInput.value.trim();            // parol
 
   if (!login) {
