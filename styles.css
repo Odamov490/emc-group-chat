@@ -274,3 +274,45 @@ textarea:focus {
     padding: 20px 16px 18px;
   }
 }
+
+
+.reply-preview {
+  font-size: 12px;
+  color: #a0aec0;
+  margin-bottom: 4px;
+  cursor: pointer;
+}
+
+.pinned-bar {
+  padding: 6px 12px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.05);
+  border-left: 3px solid #38b2ac;
+  cursor: pointer;
+}
+
+.pinned-highlight {
+  box-shadow: 0 0 0 2px #38b2ac;
+}
+.msg-action {
+  font-size: 11px;
+  margin-right: 4px;
+  background: transparent;
+  border: none;
+  color: #a0aec0;
+  cursor: pointer;
+}
+.msg-action:hover {
+  color: #ffffff;
+}
+.message-actions {
+  margin-top: 2px;
+}
+.message-reply {
+  font-size: 11px;
+  color: #a0aec0;
+  border-left: 2px solid #4a5568;
+  padding-left: 6px;
+  margin-bottom: 3px;
+}

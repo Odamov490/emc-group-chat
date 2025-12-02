@@ -1,4 +1,4 @@
-// EMC Group Chat – REALTIME Firebase Chat (per-user login + password)
+// EMC Group Chat – REALTIME Firebase Chat (per-user login + advanced actions)
 
 //---------------------------------------------------------------
 // Firebase importlari
@@ -9,6 +9,12 @@ import {
   ref,
   push,
   onChildAdded,
+  onChildChanged,
+  onChildRemoved,
+  set,
+  onValue,
+  update,
+  remove,
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
 //---------------------------------------------------------------
@@ -18,20 +24,18 @@ import {
 // displayName – chatda ko'rinadigan ism
 //---------------------------------------------------------------
 const USERS = {
-  // login: { password: "...", displayName: "..." }
   "davron": {
     password: "1234",
     displayName: "Davron Abdurashidov",
   },
   "xushnudbek": {
-    password: "5678",
+    password: "1234",
     displayName: "Xushnudbek Reimbayev",
   },
   "odamov": {
-    password: "9012",
+    password: "1234",
     displayName: "G'ulomjon Odamov",
   },
-  // ⬆️ Xohlagancha qo'shasiz:
   // "tillayev": { password: "9999", displayName: "Anvar Tillayev" },
 };
 
@@ -53,6 +57,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const messagesRef = ref(db, "messages");
+const pinnedRef = ref(db, "pinned"); // bitta umumiy pinlangan xabar
 
 //---------------------------------------------------------------
 // DOM elementlar
@@ -60,8 +65,8 @@ const messagesRef = ref(db, "messages");
 const loginScreen = document.getElementById("loginScreen");
 const chatScreen = document.getElementById("chatScreen");
 
-const nameInput = document.getElementById("nameInput");        // LOGIN
-const passwordInput = document.getElementById("passwordInput"); // PAROL
+const nameInput = document.getElementById("nameInput");
+const passwordInput = document.getElementById("passwordInput");
 const loginBtn = document.getElementById("loginBtn");
 const loginError = document.getElementById("loginError");
 const userSubtitle = document.getElementById("userSubtitle");
@@ -70,8 +75,31 @@ const logoutBtn = document.getElementById("logoutBtn");
 const messagesContainer = document.getElementById("messagesContainer");
 const messageInput = document.getElementById("messageInput");
 const sendBtn = document.getElementById("sendBtn");
+const inputBar = document.querySelector(".input-bar");
 
+// Reply / edit preview (JS orqali yaratamiz)
+const replyPreview = document.createElement("div");
+replyPreview.id = "replyPreview";
+replyPreview.className = "reply-preview";
+replyPreview.style.display = "none";
+replyPreview.textContent = "";
+inputBar.insertBefore(replyPreview, messageInput);
+
+// Pin panel (JS orqali yaratamiz)
+const pinnedBar = document.createElement("div");
+pinnedBar.id = "pinnedBar";
+pinnedBar.className = "pinned-bar";
+pinnedBar.style.display = "none";
+pinnedBar.textContent = "";
+chatScreen.insertBefore(pinnedBar, messagesContainer);
+
+//---------------------------------------------------------------
+// Holat (state)
+//---------------------------------------------------------------
 let currentUser = { id: null, name: null };
+let editingKey = null;              // qaysi xabar tahrirlanmoqda
+let replyingTo = null;              // qaysi xabarga reply yozilmoqda
+const messagesCache = {};           // key -> xabar obyekti
 
 //---------------------------------------------------------------
 // Yordamchi funksiyalar
@@ -91,13 +119,59 @@ function showChatScreen() {
   loginScreen.classList.remove("screen-active");
 }
 
-//---------------------------------------------------------------
-// Xabarni ekranga chizish
-//---------------------------------------------------------------
-function renderMessage(msg) {
-  const row = document.createElement("div");
-  row.className = "message-row " + (msg.user_id === currentUser.id ? "me" : "other");
+function clearReplyEditState() {
+  editingKey = null;
+  replyingTo = null;
+  replyPreview.style.display = "none";
+  replyPreview.textContent = "";
+}
 
+// Reply/ edit preview matnini ko'rsatish
+function showPreview(type, msg) {
+  let label = "";
+  if (type === "reply") {
+    label = `Javob: ${msg.user_name} — `;
+  } else if (type === "edit") {
+    label = "Tahrirlash: ";
+  }
+  const shortText = (msg.text || "").slice(0, 80);
+  replyPreview.textContent = label + shortText;
+  replyPreview.style.display = "block";
+}
+
+// Reply/ editni bekor qilish (previewga bosganda)
+replyPreview.addEventListener("click", () => {
+  clearReplyEditState();
+});
+
+//---------------------------------------------------------------
+// Xabar elementini chizish / yangilash
+//---------------------------------------------------------------
+function renderMessage(key, msg) {
+  messagesCache[key] = msg;
+
+  let row = document.querySelector(`.message-row[data-key="${key}"]`);
+  if (!row) {
+    row = document.createElement("div");
+    row.dataset.key = key;
+    messagesContainer.appendChild(row);
+  }
+
+  row.className = "message-row " + (msg.user_id === currentUser.id ? "me" : "other");
+  row.innerHTML = "";
+
+  // Reply preview (agar mavjud bo'lsa)
+  if (msg.reply_to) {
+    const replyBlock = document.createElement("div");
+    replyBlock.className = "message-reply";
+    replyBlock.textContent =
+      (msg.reply_to.user_name || "Foydalanuvchi") +
+      ": " +
+      (msg.reply_to.text || "").slice(0, 80);
+    row.appendChild(replyBlock);
+  }
+
+  // Avtor (agar o'zim bo'lmasam)
   if (msg.user_id !== currentUser.id) {
     const author = document.createElement("div");
     author.className = "message-author";
@@ -105,18 +179,55 @@ function renderMessage(msg) {
     row.appendChild(author);
   }
 
+  // Asosiy xabar pufagi
   const bubble = document.createElement("div");
   bubble.className = "message-bubble";
   bubble.textContent = msg.text;
   row.appendChild(bubble);
 
+  // Vaqt va "tahrirlangan" label
   const time = document.createElement("div");
   time.className = "message-time";
-  time.textContent = formatTime(msg.created_at);
+  let timeText = formatTime(msg.created_at);
+  if (msg.edited_at) {
+    timeText += " • tahrirlangan";
+  }
+  time.textContent = timeText;
   row.appendChild(time);
 
-  messagesContainer.appendChild(row);
+  // Action tugmalar
+  const actions = document.createElement("div");
+  actions.className = "message-actions";
+
+  function makeAction(label, action) {
+    const btn = document.createElement("button");
+    btn.className = "msg-action";
+    btn.dataset.action = action;
+    btn.type = "button";
+    btn.textContent = label;
+    return btn;
+  }
+
+  // Faqat o'zimning xabarlarim uchun: tahrirlash / o'chirish
+  if (msg.user_id === currentUser.id) {
+    actions.appendChild(makeAction("Tahrirlash", "edit"));
+    actions.appendChild(makeAction("O'chirish", "delete"));
+  }
+
+  // Hamma uchun: reply / pin
+  actions.appendChild(makeAction("Javob", "reply"));
+  actions.appendChild(makeAction("Pin", "pin"));
+
+  row.appendChild(actions);
+
   messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+// DOMdan xabarni o'chirish
+function removeMessageElement(key) {
+  delete messagesCache[key];
+  const row = document.querySelector(`.message-row[data-key="${key}"]`);
+  if (row) row.remove();
 }
 
 //---------------------------------------------------------------
@@ -126,32 +237,155 @@ function sendMessage() {
   const text = messageInput.value.trim();
   if (!text || !currentUser.id) return;
 
-  push(messagesRef, {
+  // Agar tahrirlash rejimi bo'lsa – mavjud xabarni yangilaymiz
+  if (editingKey) {
+    const msgRef = ref(db, `messages/${editingKey}`);
+    update(msgRef, {
+      text,
+      edited_at: Date.now(),
+    });
+    messageInput.value = "";
+    clearReplyEditState();
+    return;
+  }
+
+  // Yangi xabar
+  const msgData = {
     user_id: currentUser.id,
     user_name: currentUser.name,
     text,
     created_at: Date.now(),
-  });
+  };
+
+  // Agar reply bo'lsa
+  if (replyingTo) {
+    msgData.reply_to = {
+      key: replyingTo.key,
+      user_id: replyingTo.user_id,
+      user_name: replyingTo.user_name,
+      text: replyingTo.text,
+    };
+  }
+
+  push(messagesRef, msgData);
 
   messageInput.value = "";
+  clearReplyEditState();
   messageInput.focus();
 }
 
 //---------------------------------------------------------------
-// Firebase – real-time listener
+// Firebase – real-time listenerlar
 //---------------------------------------------------------------
 onChildAdded(messagesRef, (snapshot) => {
-  const value = snapshot.val();
-  if (!value) return;
-  renderMessage(value);
+  const val = snapshot.val();
+  if (!val) return;
+  renderMessage(snapshot.key, val);
+});
+
+onChildChanged(messagesRef, (snapshot) => {
+  const val = snapshot.val();
+  if (!val) return;
+  renderMessage(snapshot.key, val);
+});
+
+onChildRemoved(messagesRef, (snapshot) => {
+  removeMessageElement(snapshot.key);
+});
+
+// Pinlangan xabarni kuzatish
+onValue(pinnedRef, (snapshot) => {
+  const data = snapshot.val();
+  if (!data) {
+    pinnedBar.style.display = "none";
+    pinnedBar.textContent = "";
+    pinnedBar.dataset.key = "";
+    return;
+  }
+
+  pinnedBar.style.display = "block";
+  pinnedBar.dataset.key = data.key || "";
+  const shortText = (data.text || "").slice(0, 100);
+  pinnedBar.textContent = `📌 ${data.user_name || ""}: ${shortText}`;
+});
+
+// Pin bannerni bosganda — o‘sha xabarga scroll
+pinnedBar.addEventListener("click", () => {
+  const key = pinnedBar.dataset.key;
+  if (!key) return;
+  const row = document.querySelector(`.message-row[data-key="${key}"]`);
+  if (row) {
+    row.scrollIntoView({ behavior: "smooth", block: "center" });
+    row.classList.add("pinned-highlight");
+    setTimeout(() => row.classList.remove("pinned-highlight"), 1500);
+  }
+});
+
+//---------------------------------------------------------------
+// Xabar ichidagi action tugmalar: edit / delete / reply / pin
+//---------------------------------------------------------------
+messagesContainer.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-action]");
+  if (!btn) return;
+
+  const action = btn.dataset.action;
+  const row = btn.closest(".message-row");
+  if (!row) return;
+
+  const key = row.dataset.key;
+  const msg = messagesCache[key];
+  if (!msg) return;
+
+  if (action === "edit") {
+    if (msg.user_id !== currentUser.id) return;
+    editingKey = key;
+    replyingTo = null;
+    messageInput.value = msg.text;
+    showPreview("edit", msg);
+    messageInput.focus();
+  }
+
+  if (action === "delete") {
+    if (msg.user_id !== currentUser.id) return;
+    const ok = confirm("Xabarni o'chirishni xohlaysizmi?");
+    if (!ok) return;
+    const msgRef = ref(db, `messages/${key}`);
+    remove(msgRef);
+    if (editingKey === key || (replyingTo && replyingTo.key === key)) {
+      clearReplyEditState();
+    }
+  }
+
+  if (action === "reply") {
+    replyingTo = {
+      key,
+      user_id: msg.user_id,
+      user_name: msg.user_name,
+      text: msg.text,
+    };
+    editingKey = null;
+    showPreview("reply", msg);
+    messageInput.focus();
+  }
+
+  if (action === "pin") {
+    // Hozircha har kim pin qila oladi (xohlasak faqat adminlar uchun qilamiz)
+    set(pinnedRef, {
+      key,
+      user_id: msg.user_id,
+      user_name: msg.user_name,
+      text: msg.text,
+    });
+  }
 });
 
 //---------------------------------------------------------------
 // LOGIN – har xodim uchun login + parol
 //---------------------------------------------------------------
 function handleLogin() {
-  const login = nameInput.value.trim().toLowerCase(); // login (kichik harfga o'tkazamiz)
-  const pass = passwordInput.value.trim();            // parol
+  const loginRaw = nameInput.value.trim();
+  const login = loginRaw.toLowerCase();
+  const pass = passwordInput.value.trim();
 
   if (!login) {
     loginError.textContent = "Login kiriting.";
@@ -172,10 +406,9 @@ function handleLogin() {
     return;
   }
 
-  // Muvaffaqiyatli login
   currentUser = {
-    id: login,                  // unique ID sifatida login
-    name: user.displayName,     // chatda ko'rinadigan ism
+    id: login,
+    name: user.displayName,
   };
 
   sessionStorage.setItem("emc_chat_user", JSON.stringify(currentUser));
@@ -194,6 +427,7 @@ function handleLogin() {
 function handleLogout() {
   sessionStorage.removeItem("emc_chat_user");
   currentUser = { id: null, name: null };
+  clearReplyEditState();
   showLoginScreen();
 }
 
