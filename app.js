@@ -1,4 +1,5 @@
-// EMC Group Chat – REALTIME Firebase Chat (login + parol + rasm yuborish)
+// EMC Group Chat – REALTIME Firebase Chat
+// Login + parol + rasm + reply + edit + delete + pin
 
 //---------------------------------------------------------------
 // Firebase importlari
@@ -9,14 +10,18 @@ import {
   ref,
   push,
   onChildAdded,
+  onChildChanged,
+  onChildRemoved,
   remove,
+  update,
+  onValue,
+  set,
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
 //---------------------------------------------------------------
 // Xodimlar ro'yxati (LOGIN + PAROL + ko'rsatiladigan ism)
 //---------------------------------------------------------------
 const USERS = {
-  // login: { password: "...", displayName: "..." }
   davron: {
     password: "1234",
     displayName: "Davron Abdurashidov",
@@ -29,8 +34,8 @@ const USERS = {
     password: "1234",
     displayName: "G'ulomjon Odamov",
   },
-  // xohlaganingizcha qo'shishingiz mumkin
-  // "login": { password: "parol", displayName: "To'liq ism" }
+  // xohlaganingizcha qo'shing:
+  // login: { password: "parol", displayName: "To'liq ism" }
 };
 
 //---------------------------------------------------------------
@@ -52,6 +57,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const messagesRef = ref(db, "messages");
+const pinnedRef = ref(db, "pinnedMessage");
 
 //---------------------------------------------------------------
 // DOM elementlar
@@ -73,7 +79,13 @@ const sendBtn = document.getElementById("sendBtn");
 const imageBtn = document.getElementById("imageBtn");
 const imageInput = document.getElementById("imageInput");
 
+const replyPreview = document.getElementById("replyPreview");
+const pinnedBar = document.getElementById("pinnedBar");
+
 let currentUser = { id: null, name: null };
+let currentEditId = null;
+let currentReply = null; // {id, author, text}
+let pinnedMessageId = null;
 
 //---------------------------------------------------------------
 // Yordamchi funksiyalar
@@ -96,13 +108,67 @@ function showChatScreen() {
   loginScreen.classList.remove("screen-active");
 }
 
+function shortText(str) {
+  if (!str) return "";
+  if (str.length <= 40) return str;
+  return str.slice(0, 40) + "…";
+}
+
+function resetReplyAndEdit() {
+  currentEditId = null;
+  currentReply = null;
+  replyPreview.style.display = "none";
+  replyPreview.textContent = "";
+}
+
+replyPreview.addEventListener("click", () => {
+  // reply/tahrirlashni bekor qilish
+  resetReplyAndEdit();
+});
+
+// DOMda ma'lum id bo'yicha element topish
+function getRowById(id) {
+  return document.querySelector(`.message-row[data-id="${id}"]`);
+}
+
+// Pinned highlightni yangilash
+function updatePinnedHighlight() {
+  document
+    .querySelectorAll(".message-row")
+    .forEach((row) => row.classList.remove("pinned-highlight"));
+
+  if (!pinnedMessageId) return;
+
+  const row = getRowById(pinnedMessageId);
+  if (row) row.classList.add("pinned-highlight");
+}
+
+// Action tugma yaratish
+function createAction(label, handler) {
+  const btn = document.createElement("button");
+  btn.className = "msg-action";
+  btn.textContent = label;
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    handler();
+  });
+  return btn;
+}
+
 //---------------------------------------------------------------
-// Xabarni ekranga chizish
+// Xabarni ekranga chizish (create/update)
 //---------------------------------------------------------------
-function renderMessage(msg) {
-  const row = document.createElement("div");
+function renderMessage(msg, id) {
+  let row = getRowById(id);
+  if (!row) {
+    row = document.createElement("div");
+    row.dataset.id = id;
+    messagesContainer.appendChild(row);
+  }
+
   row.className =
     "message-row " + (msg.user_id === currentUser.id ? "me" : "other");
+  row.innerHTML = "";
 
   if (msg.user_id !== currentUser.id) {
     const author = document.createElement("div");
@@ -114,12 +180,25 @@ function renderMessage(msg) {
   const bubble = document.createElement("div");
   bubble.className = "message-bubble";
 
+  // Reply block (agar bor bo'lsa)
+  if (msg.replyToId && msg.replyToText) {
+    const replyBlock = document.createElement("div");
+    replyBlock.className = "message-reply";
+    replyBlock.textContent =
+      (msg.replyToAuthor || "Foydalanuvchi") +
+      ": " +
+      shortText(msg.replyToText);
+    bubble.appendChild(replyBlock);
+  }
+
+  // Matn
   if (msg.text) {
     const textNode = document.createElement("div");
     textNode.textContent = msg.text;
     bubble.appendChild(textNode);
   }
 
+  // Rasm
   if (msg.imageData) {
     const img = document.createElement("img");
     img.src = msg.imageData;
@@ -135,26 +214,111 @@ function renderMessage(msg) {
   time.textContent = formatTime(msg.created_at);
   row.appendChild(time);
 
-  messagesContainer.appendChild(row);
+  // Action tugmalar
+  const actions = document.createElement("div");
+  actions.className = "message-actions";
+
+  // Javob
+  actions.appendChild(
+    createAction("Javob", () => {
+      currentReply = {
+        id,
+        author: msg.user_name || "Foydalanuvchi",
+        text: msg.text || (msg.imageData ? "[Rasm]" : ""),
+      };
+      currentEditId = null;
+      replyPreview.style.display = "block";
+      replyPreview.textContent =
+        "Javob: " +
+        currentReply.author +
+        " – " +
+        shortText(currentReply.text);
+      messageInput.focus();
+    })
+  );
+
+  // Faqat o'z xabarini tahrirlash / o'chirish
+  if (msg.user_id === currentUser.id && !msg.imageData) {
+    actions.appendChild(
+      createAction("Tahrirlash", () => {
+        currentEditId = id;
+        currentReply = null;
+        messageInput.value = msg.text || "";
+        replyPreview.style.display = "block";
+        replyPreview.textContent =
+          "Tahrirlash rejimi. Bekor qilish uchun shu joyni bosing.";
+        messageInput.focus();
+      })
+    );
+
+    actions.appendChild(
+      createAction("O'chirish", () => {
+        const ok = confirm("Ushbu xabarni o'chirasizmi?");
+        if (!ok) return;
+        remove(ref(db, `messages/${id}`));
+      })
+    );
+  }
+
+  // Pin / Unpin (hamma uchun)
+  actions.appendChild(
+    createAction(pinnedMessageId === id ? "Unpin" : "Pin", () => {
+      if (pinnedMessageId === id) {
+        // unpin
+        remove(pinnedRef);
+      } else {
+        set(pinnedRef, {
+          id,
+          text: msg.text || (msg.imageData ? "[Rasm]" : ""),
+          author: msg.user_name || "Foydalanuvchi",
+        });
+      }
+    })
+  );
+
+  row.appendChild(actions);
+
+  updatePinnedHighlight();
   messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
 
 //---------------------------------------------------------------
-// Xabar yuborish (matn)
+// Xabar yuborish (matn) – edit / reply hisobga olingan
 //---------------------------------------------------------------
 function sendMessage() {
   const text = messageInput.value.trim();
-  if (!text || !currentUser.id) return;
+  if (!text && !currentEditId) return;
+  if (!currentUser.id) return;
 
-  push(messagesRef, {
+  // Agar tahrirlash rejimi bo'lsa
+  if (currentEditId) {
+    update(ref(db, `messages/${currentEditId}`), {
+      text,
+    });
+    messageInput.value = "";
+    resetReplyAndEdit();
+    return;
+  }
+
+  // Oddiy yangi xabar
+  const payload = {
     user_id: currentUser.id,
     user_name: currentUser.name,
     text,
     imageData: null,
     created_at: Date.now(),
-  });
+  };
+
+  if (currentReply) {
+    payload.replyToId = currentReply.id;
+    payload.replyToAuthor = currentReply.author;
+    payload.replyToText = currentReply.text;
+  }
+
+  push(messagesRef, payload);
 
   messageInput.value = "";
+  resetReplyAndEdit();
   messageInput.focus();
 }
 
@@ -169,27 +333,76 @@ function handleImageSelect(event) {
   reader.onload = function (e) {
     const dataUrl = e.target.result;
 
-    push(messagesRef, {
+    const payload = {
       user_id: currentUser.id,
       user_name: currentUser.name,
       text: "",
       imageData: dataUrl,
       created_at: Date.now(),
-    });
+    };
+
+    if (currentReply) {
+      payload.replyToId = currentReply.id;
+      payload.replyToAuthor = currentReply.author;
+      payload.replyToText = currentReply.text;
+    }
+
+    push(messagesRef, payload);
+    resetReplyAndEdit();
   };
   reader.readAsDataURL(file);
 
-  // inputni tozalab qo'yamiz, keyin ham rasm tanlash ishlasin
   imageInput.value = "";
 }
 
 //---------------------------------------------------------------
-// Firebase – real-time listener
+// Firebase – real-time listeners
 //---------------------------------------------------------------
 onChildAdded(messagesRef, (snapshot) => {
   const value = snapshot.val();
   if (!value) return;
-  renderMessage(value);
+  renderMessage(value, snapshot.key);
+});
+
+onChildChanged(messagesRef, (snapshot) => {
+  const value = snapshot.val();
+  if (!value) return;
+  renderMessage(value, snapshot.key);
+});
+
+onChildRemoved(messagesRef, (snapshot) => {
+  const row = getRowById(snapshot.key);
+  if (row) row.remove();
+});
+
+// Pinned message listener
+onValue(pinnedRef, (snapshot) => {
+  const data = snapshot.val();
+  if (!data) {
+    pinnedMessageId = null;
+    pinnedBar.style.display = "none";
+    pinnedBar.textContent = "";
+    updatePinnedHighlight();
+    return;
+  }
+
+  pinnedMessageId = data.id;
+  pinnedBar.style.display = "block";
+  pinnedBar.textContent =
+    "Pinned: " +
+    (data.author || "Foydalanuvchi") +
+    " – " +
+    shortText(data.text || "");
+  updatePinnedHighlight();
+});
+
+// Pinned barga bosilganda – xabarga scroll
+pinnedBar.addEventListener("click", () => {
+  if (!pinnedMessageId) return;
+  const row = getRowById(pinnedMessageId);
+  if (row) {
+    row.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
 });
 
 //---------------------------------------------------------------
@@ -218,7 +431,6 @@ function handleLogin() {
     return;
   }
 
-  // Muvaffaqiyatli login
   currentUser = {
     id: login,
     name: user.displayName,
@@ -241,6 +453,7 @@ function handleLogout() {
   sessionStorage.removeItem("emc_chat_user");
   currentUser = { id: null, name: null };
   messagesContainer.innerHTML = "";
+  resetReplyAndEdit();
   showLoginScreen();
 }
 
@@ -254,9 +467,13 @@ function handleClearChat() {
   );
   if (!ok) return;
 
-  remove(messagesRef)
+  Promise.all([remove(messagesRef), remove(pinnedRef)])
     .then(() => {
       messagesContainer.innerHTML = "";
+      pinnedMessageId = null;
+      pinnedBar.style.display = "none";
+      pinnedBar.textContent = "";
+      resetReplyAndEdit();
     })
     .catch((err) => {
       console.error("Chatni tozalashda xato:", err);

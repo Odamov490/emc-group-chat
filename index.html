@@ -66,6 +66,9 @@
         </div>
       </header>
 
+      <!-- PINNED MESSAGE BAR -->
+      <div id="pinnedBar" class="pinned-bar" style="display:none"></div>
+
       <!-- Messages -->
       <main id="messagesContainer" class="messages-container">
         <!-- Xabarlar JS orqali qo'shiladi -->
@@ -73,6 +76,13 @@
 
       <!-- Input area -->
       <footer class="input-bar">
+        <!-- Reply preview (tahrirlash / javob) -->
+        <div
+          id="replyPreview"
+          class="reply-preview"
+          style="display:none"
+        ></div>
+
         <!-- Rasm tanlash input (yashirin) -->
         <input
           type="file"
