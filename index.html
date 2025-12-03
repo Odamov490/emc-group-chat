@@ -47,7 +47,6 @@
     </section>
 
     <!-- Chat screen -->
-    <!-- E’tibor bering: bu yerda endi .screen EMAS, .chat-screen -->
     <section id="chatScreen" class="chat-screen">
       <header class="chat-header">
         <div class="group-left">
@@ -67,9 +66,6 @@
         </div>
       </header>
 
-      <!-- Pinned message panel -->
-      <div id="pinnedBar" class="pinned-bar" style="display:none"></div>
-
       <!-- Messages -->
       <main id="messagesContainer" class="messages-container">
         <!-- Xabarlar JS orqali qo'shiladi -->
@@ -77,19 +73,27 @@
 
       <!-- Input area -->
       <footer class="input-bar">
-        <!-- Reply / edit preview -->
-        <div
-          id="replyPreview"
-          class="reply-preview"
-          style="display:none"
-        ></div>
+        <!-- Rasm tanlash input (yashirin) -->
+        <input
+          type="file"
+          id="imageInput"
+          accept="image/*"
+          style="display: none"
+        />
+
+        <button id="imageBtn" class="attach-button" title="Rasm yuborish">
+          📎
+        </button>
 
         <textarea
           id="messageInput"
           rows="1"
           placeholder="Xabar yozing..."
         ></textarea>
-        <button id="sendBtn" class="send-button">&#10148;</button>
+
+        <button id="sendBtn" class="send-button" title="Yuborish">
+          &#10148;
+        </button>
       </footer>
     </section>
   </div>
